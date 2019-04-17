@@ -1,4 +1,6 @@
 #include <Arduino.h>
+
+#include <Encoder.h>
 #include "NeoPixelBrightnessBus.h"
 #include "NeoPixelAnimator.h"
 
@@ -6,6 +8,17 @@
  * Serial
  */
 const unsigned long BAUDRATE = 9600;
+
+/*
+ * Rotary encoder
+ */
+Encoder enc(D1, D2);
+uint8_t PIN_BTN = D3;
+
+void btn_clicked();
+
+bool flag_en = false;
+long oldPos = -999;
 
 /*
  * WS2813b
@@ -53,10 +66,15 @@ void setup() {
   Serial.begin(BAUDRATE);
   while(!Serial); // Wait for serial attach
 
+  // Rotary encoder
+  pinMode(PIN_BTN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PIN_BTN), btn_clicked, RISING);
+
   // NeoPixel begin
   Serial.println(F("Initialize strip..."));
   strip.Begin();
 
+  strip.SetBrightness(glob_brightness);
   for(uint16_t pix = 0; pix < PIXEL_COUNT; pix++) {
     RgbColor color = RgbColor(random(255), random(255), random(255));
     strip.SetPixelColor(pix, color);
@@ -104,6 +122,13 @@ void loop() {
     strip.Show();
   }
 
+  // Rotary encoder
+  long newPos = enc.read();
+  if (newPos != oldPos) {
+    oldPos = newPos;
+    Serial.print("ROT: "); Serial.println(newPos);
+  }
+
 }
 
 void serialEvent() {
@@ -144,4 +169,13 @@ void SetupAnimationSet() {
 
     animations.StartAnimation(pix, time, animUpdate);
   }
+}
+
+void btn_clicked() {
+  cli();
+
+  flag_en = !flag_en;
+  Serial.print("BTN: "); Serial.println(flag_en);
+
+  sei();
 }
