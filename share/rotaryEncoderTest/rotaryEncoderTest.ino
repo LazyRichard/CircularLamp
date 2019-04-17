@@ -1,60 +1,36 @@
-/* Read Quadrature Encoder
-   Connect Encoder to Pins PinA, PinB, and +5V.
+#include <Encoder.h>
 
-   Sketch by max wolf / www.meso.net
-   v. 0.1 - very basic functions - mw 20061220
-
-*/
-
-int val;
-const uint8_t PinA = 18;
-const uint8_t PinB = 20;
-const uint8_t GND = 19;
-
-const unsigned long INTERVAL_ROTARY_ENCODER = 3;
-
-typedef struct _RotaryEncoder {
-    unsigned long last_update_ms = 0;
-    bool a = false;
-    bool b = false;
-} RotaryEncoder;
-
-volatile RotaryEncoder encoder;
+// Change these pin numbers to the pins connected to your encoder.
+//   Best Performance: both pins have interrupt capability
+//   Good Performance: only the first pin has interrupt capability
+//   Low Performance:  neither pin has interrupt capability
+Encoder knobLeft(18, 20);
+//   avoid using pins with LEDs attached
 
 void setup() {
-    pinMode(PinA, INPUT_PULLUP);
-    pinMode(PinB, INPUT_PULLUP);
-    pinMode(GND, OUTPUT);
-    digitalWrite(GND, LOW);
-
-    Serial.begin(9600);
-
-    attachInterrupt(digitalPinToInterrupt(PinA), encA, RISING);
-    attachInterrupt(digitalPinToInterrupt(PinB), encB, RISING);
-
-    Serial.println(F("Arduio ready!"));
+    pinMode(19, OUTPUT);
+    digitalWrite(19, LOW);
+    
+  Serial.begin(9600);
+  Serial.println("TwoKnobs Encoder Test:");
 }
+
+long positionLeft  = -999;
 
 void loop() {
-
-}
-
-void encA() {
-    cli();
-    if (millis() - encoder.last_update_ms > INTERVAL_ROTARY_ENCODER) {
-        encoder.last_update_ms = millis();
-        Serial.print(F("EventA-")); Serial.print(F("A: ")); Serial.print(digitalRead(PinA)); 
-        Serial.print(F("B: ")); Serial.println(digitalRead(PinB));
-    }
-    sei();
-}
-
-void encB() {
-    cli();
-    if (millis() - encoder.last_update_ms > INTERVAL_ROTARY_ENCODER) {
-        encoder.last_update_ms = millis();
-        Serial.print(F("EventB-")); Serial.print(F("A: ")); Serial.print(digitalRead(PinA)); 
-        Serial.print(F("B: ")); Serial.println(digitalRead(PinB));
-    }
-    sei();
+  long newLeft;
+  newLeft = knobLeft.read();
+  if (newLeft != positionLeft) {
+    Serial.print("Left = ");
+    Serial.print(newLeft);
+    Serial.println();
+    positionLeft = newLeft;
+  }
+  // if a character is sent from the serial monitor,
+  // reset both back to zero.
+  if (Serial.available()) {
+    Serial.read();
+    Serial.println("Reset both knobs to zero");
+    knobLeft.write(0);
+  }
 }
