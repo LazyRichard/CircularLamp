@@ -46,10 +46,7 @@ const uint16_t ANIMATION_CHANNEL = PIXEL_COUNT;
 NeoPixelBrightnessBus<NeoGrbFeature, NeoEsp8266AsyncUart1Ws2813Method> strip(PIXEL_COUNT, PIXEL_PIN);
 NeoGamma<NeoGammaTableMethod> colorGamma;
 NeoTopology<ColumnMajorAlternatingLayout> topo(PANEL_WIDTH, PANEL_HEIGHT);
-NeoPixelAnimator funRandomAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
-NeoPixelAnimator fadeOutAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
-NeoPixelAnimator tileRandomAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
-NeoPixelAnimator zTetrominoRandomAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
+NeoPixelAnimator animations(ANIMATION_CHANNEL, NEO_CENTISECONDS);
 
 uint8_t anim_selector = 0;
 const uint8_t NUM_ANIMATION = 4;
@@ -59,7 +56,6 @@ void funRandomAnimationSet(void);
 void tileRandomAnimationSet(void);
 void zTetrominoRandomAnimationSet(void);
 
-NeoPixelAnimator* animations = &funRandomAnimation;
 void (*animationStartSet)() = &funRandomAnimationSet;
 
 /*
@@ -132,22 +128,18 @@ void loop() {
       default:
       case 0:
         Serial.println(F("FunRandomAnimation"));
-        animations = &funRandomAnimation;
         animationStartSet = &funRandomAnimationSet;
         break;
       case 1:
         Serial.println(F("TileRandomAnimation"));
-        animations = &tileRandomAnimation;
         animationStartSet = &tileRandomAnimationSet;
         break;
       case 2:
         Serial.println(F("ZminoRandomAnimation"));
-        animations = &zTetrominoRandomAnimation;
         animationStartSet = &zTetrominoRandomAnimationSet;
         break;
       case 3:
         Serial.println(F("FadeoutAnimation"));
-        animations = &fadeOutAnimation;
         animationStartSet = &fadeOutAnimationSet;
         break;
     }
@@ -157,13 +149,13 @@ void loop() {
   if (flag_change_anim) {
     flag_change_anim = false;
 
-    animations->StopAll();
-  } else if ((millis() - PrevTime_animation > INTERVAL_ANIMATION) || !animations->IsAnimating()) {
+    animations.StopAll();
+  } else if ((millis() - PrevTime_animation > INTERVAL_ANIMATION) || !animations.IsAnimating()) {
     PrevTime_animation = millis();
 
     animationStartSet();
-  } else if (animations->IsAnimating()) {
-    animations->UpdateAnimations();
+  } else if (animations.IsAnimating()) {
+    animations.UpdateAnimations();
   }
 
   // Global brightness
@@ -226,7 +218,7 @@ void fadeOutAnimationSet() {
       strip.SetPixelColor(pix, updatedColor);
     };
 
-    animations->StartAnimation(pix, time, animUpdate);
+    animations.StartAnimation(pix, time, animUpdate);
   }
 }
 
@@ -258,7 +250,7 @@ void funRandomAnimationSet() {
       strip.SetPixelColor(pix, updatedColor);
     };
 
-    animations->StartAnimation(pix, time, animUpdate);
+    animations.StartAnimation(pix, time, animUpdate);
   }
 }
 
@@ -299,7 +291,7 @@ void tileRandomAnimationSet() {
             strip.SetPixelColor(topo.Map(width_seg, height_seg), updatedColor);
           };
 
-          animations->StartAnimation(anim_index, time, animUpdate);
+          animations.StartAnimation(anim_index, time, animUpdate);
           anim_index++;
         }
       }
@@ -355,7 +347,7 @@ void zTetrominoRandomAnimationSet() {
 
             };
 
-            animations->StartAnimation(anim_index, time, animUpdate);
+            animations.StartAnimation(anim_index, time, animUpdate);
             anim_index++;
           }
         }
