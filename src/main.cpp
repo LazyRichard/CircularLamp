@@ -123,7 +123,7 @@ void loop() {
 
     anim_selector = (anim_selector + 1) % NUM_ANIMATION;
 
-    Serial.print(F(" Next animation set-"));
+    Serial.print(F("INFO: Next animation set-"));
     switch (anim_selector) {
       default:
       case 0:
