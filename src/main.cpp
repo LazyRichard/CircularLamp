@@ -36,9 +36,11 @@ const uint8_t PIXEL_PIN = D4;
 NeoPixelBrightnessBus<NeoGrbFeature, NeoEsp8266AsyncUart1Ws2813Method> strip(PIXEL_COUNT, PIXEL_PIN);
 NeoGamma<NeoGammaTableMethod> colorGamma;
 NeoTopology<ColumnMajorAlternatingLayout> topo(PANEL_WIDTH, PANEL_HEIGHT);
-NeoPixelAnimator animations(1, NEO_CENTISECONDS);
+NeoPixelAnimator animations(PIXEL_COUNT, NEO_CENTISECONDS);
 
-void SetupAnimationSet(void);
+void FadeInAnimationSet(void);
+void FadeOutAnimationSet(void);
+void FunRandomAnimationSet(void);
 
 /*
  * COLOR
@@ -46,16 +48,20 @@ void SetupAnimationSet(void);
 const uint8_t MIN_BRIGHTNESS = 50;
 const uint8_t MAX_BRIGHTNESS = 150;
 
+const uint8_t PEAK_COLOR_VAL = 255;
+
 /*
  * TIME
  */
 unsigned long PrevTime_strip = 0;
 unsigned long PrevTime_info = 0;
 unsigned long PrevTime_brightness = 0;
+unsigned long PrevTime_funLoop = 0;
 
 const unsigned long INTERVAL_STRIP = 50;
 const unsigned long INTERVAL_INFO = 500;
 const unsigned long INTERVAL_BRIGHTNESS = 500;
+const unsigned long INTERVAL_FUNLOOP = 2500;
 
 void setup() {
   // Serial
@@ -91,11 +97,13 @@ void loop() {
   }
 
   // Animate phase
-  if (animations.IsAnimating()) {
+  if ((millis() - PrevTime_funLoop > INTERVAL_FUNLOOP) || !animations.IsAnimating()) {
+    PrevTime_funLoop = millis();
+    Serial.println(F("Setup next set"));
+
+    FunRandomAnimationSet();
+  } else if (animations.IsAnimating()) {
     animations.UpdateAnimations();
-  } else {
-    Serial.println(F("Setup Next Set..."));
-    SetupAnimationSet();
   }
 
   // Global brightness
@@ -134,38 +142,71 @@ void serialEvent() {
   Serial.print(str);
 }
 
-bool fade_in = true;
-
-void SetupAnimationSet() {
-  uint16_t time = 800;
-
-  RgbColor originalColor = strip.GetPixelColor(0);
-  RgbColor targetColor = RgbColor(0);
-
-  if (fade_in) {
-    targetColor = HslColor(random(360) / 360.0f, 1.0f, 0.25f);
-  } else {
-    targetColor = RgbColor(0);
-  }
-
-  AnimUpdateCallback animUpdate = [=](const AnimationParam& param) {
-    RgbColor updatedColor = RgbColor::LinearBlend(originalColor, targetColor, param.progress);
-
-    for (uint16_t pix = 0; pix < PIXEL_COUNT; pix++) {
-      strip.SetPixelColor(pix, updatedColor);
-    }
-  };
-
-  animations.StartAnimation(0, time, animUpdate);
-
-  fade_in = !fade_in;
-}
-
 void btn_clicked() {
   cli();
 
   flag_en = !flag_en;
   Serial.print(F("BTN: ")); Serial.println(flag_en);
 
+  randomSeed((unsigned long)random(LONG_MAX, LONG_MAX));
+  FunRandomAnimationSet();
+  
   sei();
+}
+
+void FadeInAnimationSet() {
+  uint16_t time = 800;
+
+  for (uint16_t pix = 0; pix < PIXEL_COUNT; pix++) {
+    RgbColor originalColor = strip.GetPixelColor(pix);
+  }
+}
+
+void FadeOutAnimationSet() {
+  uint16_t time = 800;
+
+  for (uint16_t pix = 0; pix < PIXEL_COUNT; pix++) {
+    RgbColor originalColor = strip.GetPixelColor(pix);
+    RgbColor targetColor = RgbColor(0);
+
+    AnimUpdateCallback animUpdate = [=](const AnimationParam& param) {
+      RgbColor updatedColor = RgbColor::LinearBlend(originalColor, targetColor, param.progress);
+
+      strip.SetPixelColor(pix, updatedColor);
+    };
+
+    animations.StartAnimation(pix, time, animUpdate);
+  }
+}
+
+void FunRandomAnimationSet() {
+  for (uint16_t pix = 0; pix < PIXEL_COUNT; pix++) {
+    uint16_t time = random(100, 400);
+
+    RgbColor originalColor = strip.GetPixelColor(pix);
+    RgbColor targetColor = colorGamma.Correct(RgbColor(random(PEAK_COLOR_VAL), random(PEAK_COLOR_VAL), random(PEAK_COLOR_VAL)));
+    AnimEaseFunction easing;
+
+    switch (random(3)) {
+      case 0:
+        easing = NeoEase::CubicIn;
+        break;
+      case 1:
+        easing = NeoEase::CubicOut;
+        break;
+      case 2:
+        easing = NeoEase::QuadraticInOut;
+        break;
+    }
+
+    AnimUpdateCallback animUpdate = [=](const AnimationParam& param) {
+      float progress = easing(param.progress);
+
+      RgbColor updatedColor = RgbColor::LinearBlend(originalColor, targetColor, progress);
+      
+      strip.SetPixelColor(pix, updatedColor);
+    };
+
+    animations.StartAnimation(pix, time, animUpdate);
+  }
 }
