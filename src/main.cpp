@@ -73,13 +73,13 @@ const uint8_t PEAK_COLOR_VAL = 255;
  */
 unsigned long PrevTime_strip = 0;
 unsigned long PrevTime_info = 0;
-unsigned long PrevTime_btn = 0;
+volatile unsigned long PrevTime_btn = 0;
 unsigned long PrevTime_brightness = 0;
 unsigned long PrevTime_animation = 0;
 
 const unsigned long INTERVAL_STRIP = 50;
 const unsigned long INTERVAL_INFO = 500;
-const unsigned long MIN_INTERVAL_BTN = 300;
+const unsigned long MIN_INTERVAL_BTN = 400;
 const unsigned long INTERVAL_BRIGHTNESS = 500;
 const unsigned long INTERVAL_ANIMATION = 2500;
 
@@ -118,11 +118,7 @@ void loop() {
   }
 
   // Button event
-  unsigned long interval_btn = millis() - PrevTime_btn;
-  if (flag_btn && (interval_btn > MIN_INTERVAL_BTN)) {
-    PrevTime_btn = millis();
-    
-    Serial.print(F("INFO: BTN PRESSED INTERVAL-")); Serial.print(interval_btn);
+  if (flag_btn) {
     flag_btn = false;
 
     flag_change_anim = true;
@@ -148,8 +144,6 @@ void loop() {
         animationStartSet = &fadeOutAnimationSet;
         break;
     }
-  } else if (flag_btn) {
-    Serial.println(F("WARN: DETECTED BUTTON PRESSED. BUT PRESSED TOO QUICKLY. IGNORE IT."));
   }
 
   // Animate phase
@@ -202,8 +196,13 @@ void serialEvent() {
 }
 
 void btn_pressed() {
-  flag_btn = true;
-  Serial.println(F("DEBUG: Button Pressed"));
+  if (millis() - PrevTime_btn > MIN_INTERVAL_BTN) {
+    flag_btn = true;
+
+    Serial.println(F("DEBUG: Button Pressed"));
+  } else {
+    Serial.println(F("WARN: DETECTED BUTTON PRESSED. BUT PRESSED TOO QUICKLY. IGNORE IT"));
+  }
 }
 
 void fadeOutAnimationSet() {
