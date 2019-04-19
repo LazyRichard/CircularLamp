@@ -120,6 +120,8 @@ void loop() {
   // Button event
   unsigned long interval_btn = millis() - PrevTime_btn;
   if (flag_btn && (interval_btn > MIN_INTERVAL_BTN)) {
+    PrevTime_btn = millis();
+    
     Serial.print(F("INFO: BTN PRESSED INTERVAL-")); Serial.print(interval_btn);
     flag_btn = false;
 
