@@ -49,13 +49,15 @@ NeoTopology<ColumnMajorAlternatingLayout> topo(PANEL_WIDTH, PANEL_HEIGHT);
 NeoPixelAnimator funRandomAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
 NeoPixelAnimator fadeOutAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
 NeoPixelAnimator tileRandomAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
+NeoPixelAnimator zTetrominoRandomAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
 
 uint8_t anim_selector = 0;
-const uint8_t NUM_ANIMATION = 3;
+const uint8_t NUM_ANIMATION = 4;
 
 void fadeOutAnimationSet(void);
 void funRandomAnimationSet(void);
 void tileRandomAnimationSet(void);
+void zTetrominoRandomAnimationSet(void);
 
 NeoPixelAnimator* animations = &funRandomAnimation;
 void (*animationStartSet)() = &funRandomAnimationSet;
@@ -139,6 +141,11 @@ void loop() {
         animationStartSet = &tileRandomAnimationSet;
         break;
       case 2:
+        Serial.println(F("ZminoRandomAnimation"));
+        animations = &zTetrominoRandomAnimation;
+        animationStartSet = &zTetrominoRandomAnimationSet;
+        break;
+      case 3:
         Serial.println(F("FadeoutAnimation"));
         animations = &fadeOutAnimation;
         animationStartSet = &fadeOutAnimationSet;
@@ -299,4 +306,62 @@ void tileRandomAnimationSet() {
     }
   }
   Serial.print(F("TILE ANIMATION INDEX: ")); Serial.println(anim_index);
+}
+
+void zTetrominoRandomAnimationSet() {
+
+  const uint16_t TILE_WIDTH = 2;
+  const uint16_t TILE_HEIGHT = 2;
+
+  int anim_index = 0;
+  for (uint16_t width = 0; width < PANEL_WIDTH; width++) {
+    for (uint16_t height = 0; height < PANEL_HEIGHT; height++) {
+      if (!(width % TILE_WIDTH) && !(height % TILE_HEIGHT)) {
+        uint16_t time = random(100, 600);
+
+        RgbColor targetColor = colorGamma.Correct(RgbColor(random(PEAK_COLOR_VAL), random(PEAK_COLOR_VAL), random(PEAK_COLOR_VAL)));
+
+        AnimEaseFunction easing;
+
+        switch (random(3)) {
+          case 0:
+            easing = NeoEase::CubicIn;
+            break;
+          case 1:
+            easing = NeoEase::CubicOut;
+            break;
+          case 2:
+            easing = NeoEase::QuadraticInOut;
+            break;
+        }
+
+        uint16_t width_seg = width;
+        uint16_t height_seg = height;
+        
+        for (uint16_t tile_width = 0; tile_width < TILE_WIDTH; tile_width++) {
+          width_seg = width_seg + tile_width < PANEL_WIDTH ? width_seg + tile_width : PANEL_WIDTH;
+
+          for (uint16_t tile_height = 0; tile_height < TILE_HEIGHT; tile_height++) {
+            height_seg = height_seg + tile_height < PANEL_HEIGHT ? height_seg + tile_height : PANEL_HEIGHT;
+
+            RgbColor originalColor(strip.GetPixelColor(topo.Map(width_seg, height_seg)));
+
+            AnimUpdateCallback animUpdate = [=](const AnimationParam& param) {
+              float progress = easing(param.progress);
+
+              RgbColor updatedColor = RgbColor::LinearBlend(originalColor, targetColor, progress);
+
+              strip.SetPixelColor(topo.Map(width_seg, height_seg), updatedColor);
+
+            };
+
+            animations->StartAnimation(anim_index, time, animUpdate);
+            anim_index++;
+          }
+        }
+      }
+    }
+  }
+
+  Serial.print(F("DEBUG: Zmino ANIMATION INDEX-")); Serial.println(anim_index);
 }
