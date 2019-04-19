@@ -10,6 +10,13 @@
 const unsigned long BAUDRATE = 9600;
 
 /*
+ * FLAGS
+ */
+volatile bool flag_btn = false;
+volatile bool flag_rot = false;
+volatile bool flag_change_anim = false;
+
+/*
  * Rotary encoder
  */
 Encoder enc(D1, D2);
@@ -18,10 +25,8 @@ uint8_t PIN_BTN = D3;
 const long ROT_MIN_VALUE = 0;
 const long ROT_MAX_VALUE = 255;
 
-void btn_clicked();
+void btn_pressed();
 
-bool flag_en = false;
-bool flag_rot = false;
 long pos_old = -999;
 
 /*
@@ -30,17 +35,30 @@ long pos_old = -999;
 const uint16_t PANEL_WIDTH = 17;
 const uint16_t PANEL_HEIGHT = 10;
 
+const uint16_t TILE_WIDTH = 2;
+const uint16_t TILE_HEIGHT = 2;
+
 const uint16_t PIXEL_COUNT = PANEL_WIDTH * PANEL_HEIGHT;
 const uint8_t PIXEL_PIN = D4;
+
+const uint16_t ANIMATION_CHANNEL = PIXEL_COUNT;
 
 NeoPixelBrightnessBus<NeoGrbFeature, NeoEsp8266AsyncUart1Ws2813Method> strip(PIXEL_COUNT, PIXEL_PIN);
 NeoGamma<NeoGammaTableMethod> colorGamma;
 NeoTopology<ColumnMajorAlternatingLayout> topo(PANEL_WIDTH, PANEL_HEIGHT);
-NeoPixelAnimator animations(PIXEL_COUNT, NEO_CENTISECONDS);
+NeoPixelAnimator funRandomAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
+NeoPixelAnimator fadeOutAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
+NeoPixelAnimator tileRandomAnimation(ANIMATION_CHANNEL, NEO_CENTISECONDS);
 
-void FadeInAnimationSet(void);
-void FadeOutAnimationSet(void);
-void FunRandomAnimationSet(void);
+uint8_t anim_selector = 0;
+const uint8_t NUM_ANIMATION = 3;
+
+void fadeOutAnimationSet(void);
+void funRandomAnimationSet(void);
+void tileRandomAnimationSet(void);
+
+NeoPixelAnimator* animations = &funRandomAnimation;
+void (*animationStartSet)() = &funRandomAnimationSet;
 
 /*
  * COLOR
@@ -55,13 +73,15 @@ const uint8_t PEAK_COLOR_VAL = 255;
  */
 unsigned long PrevTime_strip = 0;
 unsigned long PrevTime_info = 0;
+unsigned long PrevTime_btn = 0;
 unsigned long PrevTime_brightness = 0;
-unsigned long PrevTime_funLoop = 0;
+unsigned long PrevTime_animation = 0;
 
 const unsigned long INTERVAL_STRIP = 50;
 const unsigned long INTERVAL_INFO = 500;
+const unsigned long MIN_INTERVAL_BTN = 300;
 const unsigned long INTERVAL_BRIGHTNESS = 500;
-const unsigned long INTERVAL_FUNLOOP = 2500;
+const unsigned long INTERVAL_ANIMATION = 2500;
 
 void setup() {
   // Serial
@@ -69,41 +89,78 @@ void setup() {
     Serial.begin(BAUDRATE);
     delay(200);
   } while (!Serial);
-  Serial.println(F("Serial initialize complete"));
+  Serial.println(F("INFO: Serial initialize complete"));
 
   // Rotary encoder
   pinMode(PIN_BTN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(PIN_BTN), btn_clicked, RISING);
+  attachInterrupt(digitalPinToInterrupt(PIN_BTN), btn_pressed, RISING);
 
   // NeoPixel begin
-  Serial.println(F("Initialize strip..."));
+  Serial.println(F("INFO: Initialize strip..."));
   strip.Begin();
 
   strip.SetBrightness(MIN_BRIGHTNESS);
   for(uint16_t pix = 0; pix < PIXEL_COUNT; pix++) {
-    RgbColor color = RgbColor(0, 0, 0);
-    strip.SetPixelColor(pix, colorGamma.Correct(color));
+    RgbColor color = RgbColor(0);
+    strip.SetPixelColor(pix, color);
   }
 
-  Serial.println(F("NodeMCU ready!"));
+  Serial.println(F("INFO: NodeMCU ready!"));
 }
 
 void loop() {
   // Serial information
   if (millis() - PrevTime_info > INTERVAL_INFO) {
     PrevTime_info = millis();
-    Serial.print(F("TIME: ")); Serial.print(millis());
-    Serial.print(F(" BRIGHT: ")); Serial.println(strip.GetBrightness());
+    Serial.print(F("INFO: TIME-")); Serial.print(millis());
+    Serial.print(F(" BRIGHT-")); Serial.print(strip.GetBrightness());
+    Serial.print(F(" ANIMATION-")); Serial.println(anim_selector);
+  }
+
+  // Button event
+  unsigned long interval_btn = millis() - PrevTime_btn;
+  if (flag_btn && (interval_btn > MIN_INTERVAL_BTN)) {
+    Serial.print(F("INFO: BTN PRESSED INTERVAL-")); Serial.print(interval_btn);
+    flag_btn = false;
+
+    flag_change_anim = true;
+
+    anim_selector = (anim_selector + 1) % NUM_ANIMATION;
+
+    Serial.print(F(" Next animation set-"));
+    switch (anim_selector) {
+      default:
+      case 0:
+        Serial.println(F("FunRandomAnimation"));
+        animations = &funRandomAnimation;
+        animationStartSet = &funRandomAnimationSet;
+        break;
+      case 1:
+        Serial.println(F("TileRandomAnimation"));
+        animations = &tileRandomAnimation;
+        animationStartSet = &tileRandomAnimationSet;
+        break;
+      case 2:
+        Serial.println(F("FadeoutAnimation"));
+        animations = &fadeOutAnimation;
+        animationStartSet = &fadeOutAnimationSet;
+        break;
+    }
+  } else if (flag_btn) {
+    Serial.println(F("WARN: DETECTED BUTTON PRESSED. BUT PRESSED TOO QUICKLY. IGNORE IT."));
   }
 
   // Animate phase
-  if ((millis() - PrevTime_funLoop > INTERVAL_FUNLOOP) || !animations.IsAnimating()) {
-    PrevTime_funLoop = millis();
-    Serial.println(F("Setup next set"));
+  if (flag_change_anim) {
+    flag_change_anim = false;
 
-    FunRandomAnimationSet();
-  } else if (animations.IsAnimating()) {
-    animations.UpdateAnimations();
+    animations->StopAll();
+  } else if ((millis() - PrevTime_animation > INTERVAL_ANIMATION) || !animations->IsAnimating()) {
+    PrevTime_animation = millis();
+
+    animationStartSet();
+  } else if (animations->IsAnimating()) {
+    animations->UpdateAnimations();
   }
 
   // Global brightness
@@ -132,7 +189,7 @@ void loop() {
       }
 
       pos_old = enc.read();
-      Serial.print(F("ROT: ")); Serial.println(pos_old);
+      Serial.print(F("DEBUG: ROT-")); Serial.println(pos_old);
   }
 }
 
@@ -142,28 +199,13 @@ void serialEvent() {
   Serial.print(str);
 }
 
-void btn_clicked() {
-  cli();
-
-  flag_en = !flag_en;
-  Serial.print(F("BTN: ")); Serial.println(flag_en);
-
-  randomSeed((unsigned long)random(LONG_MAX, LONG_MAX));
-  FunRandomAnimationSet();
-  
-  sei();
+void btn_pressed() {
+  flag_btn = true;
+  Serial.println(F("DEBUG: Button Pressed"));
 }
 
-void FadeInAnimationSet() {
-  uint16_t time = 800;
-
-  for (uint16_t pix = 0; pix < PIXEL_COUNT; pix++) {
-    RgbColor originalColor = strip.GetPixelColor(pix);
-  }
-}
-
-void FadeOutAnimationSet() {
-  uint16_t time = 800;
+void fadeOutAnimationSet() {
+  uint16_t time = 200;
 
   for (uint16_t pix = 0; pix < PIXEL_COUNT; pix++) {
     RgbColor originalColor = strip.GetPixelColor(pix);
@@ -175,11 +217,11 @@ void FadeOutAnimationSet() {
       strip.SetPixelColor(pix, updatedColor);
     };
 
-    animations.StartAnimation(pix, time, animUpdate);
+    animations->StartAnimation(pix, time, animUpdate);
   }
 }
 
-void FunRandomAnimationSet() {
+void funRandomAnimationSet() {
   for (uint16_t pix = 0; pix < PIXEL_COUNT; pix++) {
     uint16_t time = random(100, 400);
 
@@ -207,6 +249,52 @@ void FunRandomAnimationSet() {
       strip.SetPixelColor(pix, updatedColor);
     };
 
-    animations.StartAnimation(pix, time, animUpdate);
+    animations->StartAnimation(pix, time, animUpdate);
   }
+}
+
+void tileRandomAnimationSet() {
+
+  const uint16_t TILE_WIDTH = 2;
+  const uint16_t TILE_HEIGHT = 2;
+
+  int anim_index = 0;
+  for (uint16_t width = 0; width < PANEL_WIDTH; width += TILE_WIDTH) {
+    for (uint16_t height = 0; height < PANEL_HEIGHT; height += TILE_HEIGHT) {
+      const uint16_t time = random(100, 400);
+
+      RgbColor originalColor = strip.GetPixelColor(topo.Map(width, height));
+      RgbColor targetColor = colorGamma.Correct(RgbColor(random(PEAK_COLOR_VAL), random(PEAK_COLOR_VAL), random(PEAK_COLOR_VAL)));
+      
+      AnimEaseFunction easing;
+
+      switch (random(3)) {
+        case 0:
+          easing = NeoEase::CubicIn;
+          break;
+        case 1:
+          easing = NeoEase::CubicOut;
+          break;
+        case 2:
+          easing = NeoEase::QuadraticInOut;
+          break;
+      }
+
+      for (uint16_t width_seg = width; width_seg < width + TILE_WIDTH; width_seg++) {
+        for (uint16_t height_seg = height; height_seg < height + TILE_HEIGHT; height_seg++) {
+          AnimUpdateCallback animUpdate = [=](const AnimationParam& param) {
+            float progress = easing(param.progress);
+
+            RgbColor updatedColor = RgbColor::LinearBlend(originalColor, targetColor, progress);
+
+            strip.SetPixelColor(topo.Map(width_seg, height_seg), updatedColor);
+          };
+
+          animations->StartAnimation(anim_index, time, animUpdate);
+          anim_index++;
+        }
+      }
+    }
+  }
+  Serial.print(F("TILE ANIMATION INDEX: ")); Serial.println(anim_index);
 }
