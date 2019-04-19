@@ -197,6 +197,7 @@ void serialEvent() {
 
 void btn_pressed() {
   if (millis() - PrevTime_btn > MIN_INTERVAL_BTN) {
+    PrevTime_brightness = millis();
     flag_btn = true;
 
     Serial.println(F("DEBUG: Button Pressed"));
