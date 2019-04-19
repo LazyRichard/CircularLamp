@@ -61,7 +61,7 @@ void (*animationStartSet)() = &funRandomAnimationSet;
 /*
  * COLOR
  */
-const uint8_t MIN_BRIGHTNESS = 50;
+const uint8_t MIN_BRIGHTNESS = 20;
 const uint8_t MAX_BRIGHTNESS = 150;
 
 const uint8_t PEAK_COLOR_VAL = 255;
