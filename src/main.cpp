@@ -265,7 +265,6 @@ void tileRandomAnimationSet() {
     for (uint16_t height = 0; height < PANEL_HEIGHT; height += TILE_HEIGHT) {
       const uint16_t time = random(100, 400);
 
-      RgbColor originalColor = strip.GetPixelColor(topo.Map(width, height));
       RgbColor targetColor = colorGamma.Correct(RgbColor(random(PEAK_COLOR_VAL), random(PEAK_COLOR_VAL), random(PEAK_COLOR_VAL)));
       
       AnimEaseFunction easing;
@@ -282,8 +281,12 @@ void tileRandomAnimationSet() {
           break;
       }
 
-      for (uint16_t width_seg = width; width_seg < width + TILE_WIDTH; width_seg++) {
-        for (uint16_t height_seg = height; height_seg < height + TILE_HEIGHT; height_seg++) {
+      uint16_t limit_width = (width + TILE_WIDTH) > PANEL_WIDTH ? (width + TILE_WIDTH) : PANEL_WIDTH;
+      uint16_t limit_height = (height + TILE_HEIGHT) > PANEL_HEIGHT ? (height + TILE_HEIGHT) : PANEL_HEIGHT;
+      for (uint16_t width_seg = width; width_seg < limit_width; width_seg++) {
+        for (uint16_t height_seg = height; height_seg < limit_height; height_seg++) {
+          RgbColor originalColor = strip.GetPixelColor(topo.Map(width_seg, height_seg));
+
           AnimUpdateCallback animUpdate = [=](const AnimationParam& param) {
             float progress = easing(param.progress);
 
