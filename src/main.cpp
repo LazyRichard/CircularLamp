@@ -301,7 +301,7 @@ void tileRandomAnimationSet() {
       }
     }
   }
-  Serial.print(F("TILE ANIMATION INDEX: ")); Serial.println(anim_index);
+  Serial.print(F("DEBUG: TILE ANIMATION INDEX-")); Serial.println(anim_index);
 }
 
 void zTetrominoRandomAnimationSet() {
