@@ -186,12 +186,13 @@ void loop() {
       pos_old = enc.read();
       Serial.print(F("DEBUG: ROT-")); Serial.println(pos_old);
   }
-}
 
-void serialEvent() {
-  String str = Serial.readString();
+  // Serial event
+  if (Serial.available()) {
+    String str = Serial.readString();
 
-  Serial.print(str);
+    Serial.print(F("INFO: MSG-")); Serial.print(str);
+  }
 }
 
 void btn_pressed() {
