@@ -212,9 +212,11 @@ void fadeOutAnimationSet() {
   for (uint16_t pix = 0; pix < PIXEL_COUNT; pix++) {
     RgbColor originalColor = strip.GetPixelColor(pix);
     RgbColor targetColor = RgbColor(0);
+    AnimEaseFunction easing = NeoEase::CubicOut;
 
     AnimUpdateCallback animUpdate = [=](const AnimationParam& param) {
-      RgbColor updatedColor = RgbColor::LinearBlend(originalColor, targetColor, param.progress);
+      float progress = easing(param.progress);
+      RgbColor updatedColor = RgbColor::LinearBlend(originalColor, targetColor, progress);
 
       strip.SetPixelColor(pix, updatedColor);
     };
