@@ -335,10 +335,10 @@ void zTetrominoRandomAnimationSet() {
         uint16_t height_seg = height;
         
         for (uint16_t tile_width = 0; tile_width < TILE_WIDTH; tile_width++) {
-          width_seg = width_seg + tile_width < PANEL_WIDTH ? width_seg + tile_width : PANEL_WIDTH;
+          width_seg = (width_seg + tile_width) % PANEL_WIDTH;
 
           for (uint16_t tile_height = 0; tile_height < TILE_HEIGHT; tile_height++) {
-            height_seg = height_seg + tile_height < PANEL_HEIGHT ? height_seg + tile_height : PANEL_HEIGHT;
+            height_seg = (height_seg + tile_height) % PANEL_HEIGHT;
 
             RgbColor originalColor(strip.GetPixelColor(topo.Map(width_seg, height_seg)));
 
